@@ -44,12 +44,12 @@ class DukeEnergy:
     @property
     def internal_user_id(self) -> str | None:
         """Get the internal user ID from auth response."""
-        return self._auth.get("cdp_internal_user_id") if self._auth else None
+        return self._auth.get("internalUserID") if self._auth else None
 
     @property
     def email(self) -> str | None:
         """Get the email from auth response."""
-        return self._auth.get("email") if self._auth else None
+        return self._auth.get("loginEmailAddress") if self._auth else None
 
     async def close(self) -> None:
         """Close the SolarEdge API client."""
@@ -197,18 +197,12 @@ class DukeEnergy:
         # map results to an object from start to end date by interval with values from
         # result["Series1"] array for energy and result["Series3"] array for temperature
         # first, loop through a range of dates from start to end date by interval
-        energy = result["Series1"]
-        energy_len = len(energy)
-        temp = result["Series3"]
-        temp_len = len(temp)
         num_values = (end_date - start_date).days + 1
+        result_len = len(result["usageArray"])
 
-        # if interval is hourly, multiply the number of values by 24 and repeat the
-        # temperature values for each hour
+        # if interval is hourly, multiply the number of values by 24
         if interval == "HOURLY":
             num_values = num_values * 24
-            temp = [t for t in temp for _ in range(24)]
-            temp_len = len(temp)
 
         data = {}
         missing = []
@@ -223,18 +217,18 @@ class DukeEnergy:
                 if interval == "HOURLY"
                 else date.strftime("%m/%d/%Y")
             )
-            if result["TickSeries"][n] != expected_series:
+            if result['usageArray'][n]['date'] != expected_series:
                 missing.append(date)
                 offset += 1
                 continue
 
-            if n >= energy_len or not energy[n] > 0:
+            if n >= result_len or not float(result['usageArray'][n]['usage']) > 0:
                 missing.append(date)
                 continue
 
             data[date] = {
-                "energy": energy[n] if n < energy_len else None,
-                "temperature": temp[n] if n < temp_len else None,
+                "energy": float(result['usageArray'][n]['usage']) if n < result_len else None,
+                "temperature": result['usageArray'][n]['temperatureAvg'] if n < result_len else None,
             }
 
         return {"data": data, "missing": missing}
